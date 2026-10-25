@@ -1,0 +1,101 @@
+name: Update OpenJarvis upstream
+
+on:
+  schedule:
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: jarvis-upstream-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Prepare upstream merge
+        id: merge
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          bash personal/update.sh --prepare
+          if [[ $(git branch --show-current) == automation/upstream ]]; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: astral-sh/setup-uv@v6
+        if: steps.merge.outputs.changed == 'true'
+        with:
+          version: '0.9.5'
+          python-version: '3.12'
+          enable-cache: true
+      - name: Install locked dependencies
+        if: steps.merge.outputs.changed == 'true'
+        run: uv sync --frozen --extra dev --extra server --extra tools-search --extra memory-bm25 --extra inference-cloud
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.merge.outputs.changed == 'true'
+      - name: Build native permissions and tools
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: uv run --no-sync maturin develop --locked --manifest-path rust/crates/openjarvis-python/Cargo.toml
+      - name: Verify upstream integration before publishing update branch
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          OPENJARVIS_HOME: ${{ runner.temp }}/jarvis-state
+        run: >-
+          uv run --no-sync pytest -q personal/tests
+          tests/agents/test_orchestrator.py
+          tests/cli/test_skill_cmd.py
+          tests/core/test_config.py
+          tests/server/test_api_routes.py
+      - uses: actions/setup-node@v4
+        if: steps.merge.outputs.changed == 'true'
+        with:
+          node-version: '24'
+      - name: Validate browser production build
+        if: steps.merge.outputs.changed == 'true'
+        working-directory: frontend
+        run: |
+          npm install --prefix "$RUNNER_TEMP/jarvis-npm" npm@11.19.0
+          "$RUNNER_TEMP/jarvis-npm/node_modules/.bin/npm" ci --ignore-scripts
+          "$RUNNER_TEMP/jarvis-npm/node_modules/.bin/npm" run build
+      - name: Create or refresh update PR
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only replace the updater's dedicated branch; main is never pushed.
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          old_tip=$(git ls-remote origin refs/heads/automation/upstream | cut -f1)
+          git push --force-with-lease="refs/heads/automation/upstream:$old_tip" origin HEAD:refs/heads/automation/upstream
+          body_file=$(mktemp)
+          trap 'rm -f "$body_file"' EXIT
+          cat > "$body_file" <<'BODY'
+          Merge the latest OpenJarvis upstream main while preserving personal agents, skills, and configuration.
+
+          The updater removes imported release and publishing workflows and retains this repository's Jarvis CI and updater. Locked dependency installation and personal/upstream integration tests passed before this branch was pushed.
+
+          Review upstream changes before merging. Auto-merge is requested only when repository settings and branch rules allow it; otherwise merge this PR manually after review.
+          BODY
+          pr=$(gh pr list --base main --head automation/upstream --state open --json number --jq '.[0].number // empty')
+          if [[ -n "$pr" ]]; then
+            gh pr edit "$pr" --title 'chore: update OpenJarvis upstream' --body-file "$body_file"
+          else
+            pr=$(gh pr create --base main --head automation/upstream --title 'chore: update OpenJarvis upstream' --body-file "$body_file")
+          fi
+          if ! gh pr merge "$pr" --auto --merge; then
+            echo 'Auto-merge unavailable; the tested update PR is ready for manual review.'
+          fi

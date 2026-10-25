@@ -1,0 +1,15 @@
+# Initial establishment report
+
+Source inspected: OpenJarvis main commit `40092da25efb2288f2650d0380d5224d3c46b9a1`.
+
+The selected foundation already provides a CLI, browser interface, local-model engines, agent orchestration, skills, search, and memory. The personal layer adds task routing, role-specific prompts and tool lists, a research/review/report pipeline, maintained instructional skills, browser voice chat, Twilio Voice spoken-message calls, daily upstream update pull requests, and an hourly local update supervisor.
+
+Research architecture: the upstream `deep_research` preset chiefly targets indexed private knowledge. General web research here uses the orchestrator with `web_search` and `http_request`, followed by a separate critic and report writer. The reviewer can identify unsupported claims but is not an independent source-verification service. Research quality still depends on model capability, retrieved evidence, and human review.
+
+Capability boundaries: six profiles run on demand; they are not background workers. Coding produces proposals. Calls require an explicit confirmed CLI action and credentials. Interactive phone conversation is a separate implementation. Community skill discovery is available, while automatic installation of unreviewed executable skills is disabled.
+
+Prepared and checked: frozen Python dependency installation, TypeScript/browser production build, 211 selected tests (including 58 personal tests), Python lint, shell syntax, and local call previews. Personal inference and Twilio tests use explicit doubles. Browser voice HTTP routes and the local updater are covered, without claiming real microphone or provider success. Ollama's downloaded Linux archive matched its official SHA-256. Its native server cannot write the cloud user's read-only home, so optional local-model cloud startup uses Docker instead. The required Rust extension was subsequently built and installed; all 22 selected API tests, including the four initially blocked permission checks, then passed.
+
+The user selected OpenRouter as the cloud provider and requested both browser voice chat and phone-call support. The primary engine is now cloud with model `openrouter/openai/gpt-5-mini`; local Ollama is optional. No OpenRouter key was present. Startup and agent invocation correctly report the missing credential without claiming a completed answer. Model-registry, GitHub API, and search access were also denied by the cloud proxy. No live answer or cited research report has been validated. No Twilio credentials were present and no phone call was attempted. Required secrets, variables, and network additions are saved in the cloud draft. GitHub auto merge depends on repository settings; saving workflow files alone does not prove scheduled automation ran or changes were deployed locally.
+
+Recommended next acceptance check after network settings are applied: start the selected model, ask a simple question, run one real research pipeline, and inspect the resulting evidence and review notes. Configure Twilio securely only if phone calls are needed.

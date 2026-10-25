@@ -1,0 +1,51 @@
+name: Jarvis CI
+
+on:
+  push:
+    branches: [main, automation/upstream]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+          python-version: '3.12'
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --frozen --extra dev --extra server --extra tools-search --extra memory-bm25 --extra inference-cloud
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build native permissions and tools
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: uv run --no-sync maturin develop --locked --manifest-path rust/crates/openjarvis-python/Cargo.toml
+      - name: Personal and upstream integration checks
+        env:
+          OPENJARVIS_HOME: ${{ runner.temp }}/jarvis-state
+        run: >-
+          uv run --no-sync pytest -q personal/tests
+          tests/agents/test_orchestrator.py
+          tests/cli/test_skill_cmd.py
+          tests/core/test_config.py
+          tests/server/test_api_routes.py
+
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate browser production build
+        working-directory: frontend
+        run: |
+          npm install --prefix "$RUNNER_TEMP/jarvis-npm" npm@11.19.0
+          "$RUNNER_TEMP/jarvis-npm/node_modules/.bin/npm" ci --ignore-scripts
+          "$RUNNER_TEMP/jarvis-npm/node_modules/.bin/npm" run build

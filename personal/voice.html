@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jarvis voice chat</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 3rem auto; padding: 0 1rem; background: #101820; color: #edf5f7; }
+    h1 { margin-bottom: .5rem; }
+    p { line-height: 1.55; }
+    .note { color: #b5c8d0; font-size: .95rem; }
+    #conversation { min-height: 180px; max-height: 50vh; overflow: auto; border: 1px solid #465b65; border-radius: .8rem; padding: 1rem; margin: 1.5rem 0; }
+    #conversation p { white-space: pre-wrap; overflow-wrap: anywhere; }
+    textarea { width: 100%; box-sizing: border-box; min-height: 90px; padding: .8rem; background: #172a34; color: inherit; border: 1px solid #65818e; border-radius: .5rem; font: inherit; }
+    button { padding: .7rem 1rem; margin: .5rem .4rem .5rem 0; border: 1px solid #8fbdca; border-radius: .5rem; background: #234b5a; color: #fff; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    :focus-visible { outline: 3px solid #92e3f5; outline-offset: 3px; }
+    #status { min-height: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Jarvis voice chat</h1>
+  <p>Speak or type. Jarvis replies through your configured AI model and can read the answer aloud.</p>
+  <p class="note">Microphone recognition depends on your browser; Chrome on localhost is recommended. Your browser may send audio to its speech provider. Jarvis receives the transcript and sends conversation text to your configured model provider. This page does not place telephone calls.</p>
+  <div id="conversation" role="log" aria-label="Conversation" aria-live="polite"></div>
+  <form id="chat">
+    <label for="message">Your message</label>
+    <textarea id="message" maxlength="4000" required placeholder="Ask Jarvis anything…"></textarea>
+    <button type="submit" id="send">Send</button>
+    <button type="button" id="mic">Start microphone</button>
+    <button type="button" id="stop">Stop speaking</button>
+    <button type="button" id="clear">Clear conversation</button>
+    <label><input type="checkbox" id="speak" checked> Read replies aloud</label>
+  </form>
+  <p id="status" role="status" aria-live="polite">Ready. The microphone starts only when you choose it.</p>
+  <script>
+    'use strict';
+    const byId = id => document.getElementById(id);
+    const history = [];
+    const recognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const canSpeak = 'speechSynthesis' in window;
+    let recognition = null;
+    let listening = false;
+    let busy = false;
+    const status = text => { byId('status').textContent = text; };
+    function append(role, text) {
+      const line = document.createElement('p');
+      const name = document.createElement('strong');
+      name.textContent = role === 'user' ? 'You: ' : 'Jarvis: ';
+      line.append(name, document.createTextNode(text));
+      byId('conversation').append(line);
+      byId('conversation').scrollTop = byId('conversation').scrollHeight;
+    }
+    function trimHistory() {
+      while (history.length > 12 || history.reduce((n, m) => n + m.content.length, 0) > 16000) history.shift();
+    }
+    function setBusy(value) {
+      busy = value;
+      byId('send').disabled = value;
+      byId('mic').disabled = value || !recognition;
+      byId('clear').disabled = value;
+    }
+    byId('chat').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (busy) return;
+      const message = byId('message').value.trim();
+      if (!message) return;
+      if (recognition && listening) recognition.stop();
+      if (canSpeak) window.speechSynthesis.cancel();
+      setBusy(true);
+      append('user', message);
+      status('Jarvis is thinking…');
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message, history}),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'The request failed.');
+        append('assistant', data.reply);
+        history.push({role: 'user', content: message}, {role: 'assistant', content: data.reply});
+        trimHistory();
+        byId('message').value = '';
+        status('Ready.');
+        if (canSpeak && byId('speak').checked) {
+          const utterance = new SpeechSynthesisUtterance(data.reply);
+          utterance.onerror = () => status('Spoken playback unavailable; read the reply above.');
+          window.speechSynthesis.speak(utterance);
+        }
+      } catch (error) {
+        status(error.message || 'Could not reach Jarvis.');
+      } finally {
+        setBusy(false);
+      }
+    });
+    if (recognitionClass) {
+      recognition = new recognitionClass();
+      recognition.lang = navigator.language || 'en-IN';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.onstart = () => { listening = true; byId('mic').textContent = 'Stop microphone'; status('Listening…'); };
+      recognition.onend = () => { listening = false; byId('mic').textContent = 'Start microphone'; if (!busy) status('Microphone stopped.'); };
+      recognition.onerror = event => status('Microphone recognition unavailable (' + event.error + '). Type your message instead.');
+      recognition.onresult = event => {
+        byId('message').value = event.results[0][0].transcript.slice(0, 4000);
+        byId('chat').requestSubmit();
+      };
+      byId('mic').addEventListener('click', () => {
+        if (listening) { recognition.stop(); return; }
+        if (canSpeak) window.speechSynthesis.cancel();
+        try { recognition.start(); } catch (_) { status('Cannot start microphone. Use text input or try again.'); }
+      });
+    } else {
+      byId('mic').disabled = true;
+      status('This browser does not support speech recognition. Text chat is available.');
+    }
+    if (!canSpeak) { byId('speak').checked = false; byId('speak').disabled = true; }
+    byId('stop').addEventListener('click', () => { if (canSpeak) window.speechSynthesis.cancel(); });
+    byId('clear').addEventListener('click', () => {
+      history.length = 0;
+      byId('conversation').replaceChildren();
+      if (canSpeak) window.speechSynthesis.cancel();
+      if (recognition && listening) recognition.stop();
+      status('Conversation cleared.');
+    });
+    window.addEventListener('beforeunload', () => {
+      if (canSpeak) window.speechSynthesis.cancel();
+      if (recognition) recognition.abort();
+    });
+  </script>
+</body>
+</html>
