@@ -1,11 +1,15 @@
 {
-  "package_version": "1.0.0",
+  "package_version": "2.0.0",
   "training_status": "NOT_TRAINED",
   "model_weights_included": false,
   "dataset": {
-    "train": 48,
+    "train": 84,
     "validation": 6,
     "test": 6,
+    "tool_traces_separate": 6,
+    "preference_pairs_separate": 12,
+    "knowledge_cards": 20,
+    "independent_evaluation_cases": 18,
     "languages": [
       "te",
       "en",
@@ -18,6 +22,8 @@
     "split separation by intent",
     "memory consent, owner isolation, correction, export, deletion",
     "Python compilation",
+    "bounded lexical knowledge retrieval",
+    "supplementary data schema",
     "archive checksum verification"
   ],
   "unverified": [
@@ -27,18 +33,28 @@
     "ASR and TTS performance"
   ],
   "files": {
-    "EVALUATION.md": "8c8486c3a5b5f6a3fe4ab01a596174f867bf863bce2348c214e40cb3bae4e1a8",
+    "EVALUATION.md": "88d11ea60f27e4897f0524c170a309682f3f4cfb2208199de4fd77199d503e47",
     "LICENSE": "ac617ecddb7ffeb27a239c6c9c8145212306baa90e23ee694849bf3cefb10743",
-    "README.md": "5d104d38ee7faf2da75fd708bc6c0e72a59dc8c0ac00ba82a5f6ed3c8a1c8f37",
+    "README.md": "2b241b7e41b6087d555e1383365b8c1e9de941377e519bfd0f5129b2e95b954f",
     "SYSTEM_PROMPT.md": "90de97a23694b8059f403f4ce65072bea2ca60734afa6eb0017aaa8bc0194ecb",
-    "data/DATA_CARD.md": "51a0cdfbbe70d0919ae5e859bf6f07bd7fae92da30dd2de6c393bb034adf038e",
+    "data/DATA_CARD.md": "5d973f8ab5ada01b7fa6bc36dca4d69f3a60c95df42863fdbbd8c714211fc720",
+    "data/advanced_train.jsonl": "55a5fcca0db5de6bd1139541a6dae2b89f8c12fd69143dcac27d61a2b5315693",
+    "data/preferences.jsonl": "3b82a97a09ec8717b2fd13d460abccf67679c3395a987feb3a4e34b5a778b0df",
     "data/test.jsonl": "a578a5a1cabd264101b167d07009f3601c57967821eb46cb2e74c3d16ae9fbe7",
+    "data/tool_traces.jsonl": "6a2780317e4ac4342c189e9cde0cff80e857d9a9289966ef769c55ba71902379",
     "data/train.jsonl": "b4fa9a8c2a01db093adfa255fc1151222eb8b829764fd83295bcb50dad7e9d1b",
     "data/validation.jsonl": "a6f9972ba0bf1cb928aae17d8604cad61c70fb35b6ff3b6165478b4d416326c4",
+    "evaluation/cases.jsonl": "419d5b8102769ecc4f3acb9dfbdde56e1f01445cdfae1ae8421270bb896cebc6",
+    "evaluation/reviews_template.jsonl": "ce3cd714ab571a0ca12c774dc3eed6ef7e1fb465cb2bc8d0c450b549eb0188ce",
     "jarvis_profile/__init__.py": "43401be9474d99eed47f476864e52992c15a18b3216d4f9d34871ea5b7e026b4",
+    "jarvis_profile/knowledge.py": "135f9bac8f8d11f26cddff98286ebe18ee48aac31be8f19962c10655e7787b0d",
     "jarvis_profile/memory.py": "fda26a157ca9065e352030e6b444b2640ae77420474a9d2498e43ed6866b82a5",
+    "knowledge/cards.jsonl": "60c9b25683190d8afdd8917701c0d8994d2ef63e0818fd8260006b7317208c92",
+    "knowledge/knowledge.sqlite3": "3cd86ec1306f8b61485a6b0b09bf6dd9b1ffd41d1e8bedc5bf1469cd3d91d8c1",
     "requirements-training.txt": "55cda68337859bef1ddbdc7c5590315cf917368caf622dc2ec528b535cc5c6b4",
-    "scripts/train_lora.py": "c37bd1f0fe4e83e320b49db25861004565ea0cd3c3a29ac80b80758f917d104f",
-    "scripts/validate.py": "c0597ffa9e4f9e63590ad34ff2cd13314d5c8a67a3df48ca305fbc8fe174c9e1"
+    "scripts/build_knowledge.py": "755e3c08af7e3aca4159f83718415467a2ef7ab049c615dd5d37863389724092",
+    "scripts/score_reviews.py": "6c9b026ccc1343b425da0bed5ac032d3a0ec85495bb3d3266cc4f6e3fb60edc4",
+    "scripts/train_lora.py": "59d4dda7136e58de39dffc1e048a1b856d3fc2cfbca882166bf67324a08603a4",
+    "scripts/validate.py": "fd88b5d0d038dcea9fcaeda44c7797abc94f37b8a3569c59fa57b66dde47a521"
   }
 }

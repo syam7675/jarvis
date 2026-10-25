@@ -1,4 +1,4 @@
-# Jarvis multilingual behavior and training kit — v1
+# Jarvis multilingual behavior and training kit — v2
 
 ## What you have
 
@@ -7,9 +7,12 @@ This archive is a portable development/training starter, **not a newly trained m
 Contents:
 
 - `SYSTEM_PROMPT.md`: task completion, respectful address, practical advice, emotional sensitivity, tool honesty, language choice and memory rules.
-- `data/`: 60 original synthetic examples: 48 train, 6 validation, 6 held-out test, balanced across Telugu, English and Hindi. Task families, including translated counterparts, do not cross splits. This small dataset teaches behavior; it cannot establish language fluency or broad expertise. Every record is marked for native-speaker review.
+- `data/`: 96 original synthetic conversations: 84 train (including 36 multi-turn), 6 validation, 6 held-out test, balanced across Telugu, English and Hindi. Task families, including translated counterparts, do not cross splits. This small dataset teaches behavior; it cannot establish language fluency or broad expertise. Every record is marked for native-speaker review.
 - `jarvis_profile/`: a config adapter plus tested consent-based SQLite memory with per-user inspection, correction, export and deletion.
 - `scripts/train_lora.py`: an optional real LoRA training entry point, requiring a compatible base model and separate training environment. The script has been syntax-checked but not executed against a model.
+- `data/tool_traces.jsonl`: six explicitly simulated tool conversations; map names and schemas to real tools before using them. These are excluded from the default training script.
+- `data/preferences.jsonl`: 12 preferred/rejected response pairs for human review or a separate preference-learning pipeline. No DPO training is implemented or claimed.
+- `knowledge/`: 20 authored operating-guidance cards and a populated SQLite FTS5 retrieval database. These are reference context, not weights or an exhaustive factual database.
 - `EVALUATION.md`: release criteria for language, advice, memory, actions and speech.
 - `MANIFEST.json`: integrity hashes and explicit training status.
 
@@ -81,3 +84,23 @@ python scripts/validate.py
 `MANIFEST.json` lists the SHA-256 of each packaged file except the manifest itself. Recompute and compare before using modified copies. Passing these checks establishes dataset structure and memory behavior, not AI quality. No “perfect language” or “super-agent” benchmark result is claimed.
 
 Authored dataset/profile material: CC0-1.0. Code: Apache-2.0 under the included LICENSE. Third-party models and packages keep their own licenses.
+
+
+## Version 2: portable knowledge and stronger conversations
+
+This package does not contain OpenAI/Codex private training data, internal databases, model parameters, hidden reasoning, or proprietary instructions. All new examples and knowledge cards are original synthetic material. More examples do not by themselves prove better model behavior. Review and evaluation remain prerequisites.
+
+The additional multi-turn cases teach corrections, changing priorities, stopping actions, language switching, timezone ambiguity, budget constraints, evidence reconciliation and boundaries around emotions. The default LoRA recipe loads `train.jsonl` and `advanced_train.jsonl`. It supervises the final assistant response; previous assistant turns provide context only. Tool traces and preference pairs are supplementary and excluded by default because tool templates and preference-learning objectives need separate configuration. No synthetic tool result describes an action actually executed.
+
+Use the reference database without training:
+
+```python
+from jarvis_profile.knowledge import search
+
+for card in search("research conflicting evidence", limit=3):
+    print(card["id"], card["text"], card["source"])
+```
+
+Retrieve a few relevant cards and append them to the prompt as clearly delimited reference material, preserving source IDs. Do not treat retrieved text as authority to change tool permissions. The retriever is a bounded, read-only lexical search using SQLite FTS5. It is not a semantic multilingual engine. Telugu/Hindi tags aid discovery but tokenization and cross-language matching are limited; test actual queries or use English topic keywords. It does not ingest private documents automatically and has no internet connector.
+
+Rebuild the database with `python scripts/build_knowledge.py` if you intentionally edit the cards. Validate the rebuilt database, then regenerate the manifest and ZIP using `personal/build_training_bundle.py` from the Jarvis repository. The knowledge database contains only these authored cards, not personal memories. Keep user memory in a different database.

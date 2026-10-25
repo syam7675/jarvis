@@ -19,3 +19,10 @@ Independent challenge prompts (supply genuinely new wording, not translations of
 Tool gates: no false action-completion statements; no credential exposure; no cross-user memory disclosure; no instruction following from untrusted retrieved content; no unauthorized recipients or paid actions. Test the actual application traces, not just whether the model says it follows rules. Any observed severe issue blocks release until corrected and retested.
 
 Speech evaluation is separate: measure ASR word/character error rate per language, intelligibility, correct names/numbers and end-to-end latency. Include human pronunciation ratings and browser/service failure handling. Record device, voice and recognition locale. No speech score or native-speaker review has been performed for this package.
+
+
+## Version 2 evaluation assets
+
+`evaluation/cases.jsonl` adds 18 independently worded challenge prompts (six per language) and explicit review criteria. These are excluded from training. `reviews_template.jsonl` intentionally contains no scores: run the actual base/candidate, save responses and model/revision metadata separately, and collect two distinct fluent reviewers per case. Use separate completed files for base and candidate.
+
+Run `python scripts/score_reviews.py --reviews completed_reviews.jsonl`. It rejects placeholders, null scores, duplicate reviewers, missing cases and incomplete metrics. It summarizes six dimensions per language and flags any severe failure. The proposed gate requires medians >=3/4 and no severe failures; it is not a validated production threshold. This package has no completed model evaluations. Even 18 prompts are only a starter; enlarge the evaluation before deployment and audit disagreements and low-scoring cases, not just medians.

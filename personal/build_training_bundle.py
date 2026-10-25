@@ -12,13 +12,17 @@ files = sorted(
     if p.is_file() and "__pycache__" not in p.parts and p.name != "MANIFEST.json"
 )
 manifest = {
-    "package_version": "1.0.0",
+    "package_version": "2.0.0",
     "training_status": "NOT_TRAINED",
     "model_weights_included": False,
     "dataset": {
-        "train": 48,
+        "train": 84,
         "validation": 6,
         "test": 6,
+        "tool_traces_separate": 6,
+        "preference_pairs_separate": 12,
+        "knowledge_cards": 20,
+        "independent_evaluation_cases": 18,
         "languages": ["te", "en", "hi"],
         "source": "original synthetic seed; native review required",
     },
@@ -27,6 +31,8 @@ manifest = {
         "split separation by intent",
         "memory consent, owner isolation, correction, export, deletion",
         "Python compilation",
+        "bounded lexical knowledge retrieval",
+        "supplementary data schema",
         "archive checksum verification",
     ],
     "unverified": [
@@ -41,9 +47,9 @@ manifest = {
     },
 }
 (root / "MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n")
-out = root.parent / "jarvis-training-kit-v1.zip"
+out = root.parent / "jarvis-training-kit-v2.zip"
 with ZipFile(out, "w", compression=ZIP_DEFLATED) as archive:
     for path in files + [root / "MANIFEST.json"]:
-        archive.write(path, Path("jarvis-training-kit-v1") / path.relative_to(root))
+        archive.write(path, Path("jarvis-training-kit-v2") / path.relative_to(root))
 print(out)
 print("SHA256", hashlib.sha256(out.read_bytes()).hexdigest())

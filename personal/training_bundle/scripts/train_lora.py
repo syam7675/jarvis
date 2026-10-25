@@ -1,6 +1,7 @@
 """Train a LoRA adapter on a chosen licensed causal model. Not run by packaging."""
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -69,7 +70,11 @@ def main():
 
     def load(split):
         encoded = []
-        for line in (root / "data" / f"{split}.jsonl").read_text().splitlines():
+        paths = [root / "data" / f"{split}.jsonl"]
+        if split == "train":
+            paths.append(root / "data" / "advanced_train.jsonl")
+        lines = [line for path in paths for line in path.read_text().splitlines()]
+        for line in lines:
             messages = json.loads(line)["messages"]
             full = tok.apply_chat_template(
                 messages, tokenize=True, add_generation_prompt=False
@@ -139,7 +144,19 @@ def main():
     trainer.train()
     trainer.save_model(str(output))
     tok.save_pretrained(str(output))
-    (output / "training_provenance.json").write_text(json.dumps(vars(args), indent=2))
+    provenance = {
+        "arguments": vars(args),
+        "dataset_sha256": {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in [
+                root / "data" / name
+                for name in ("train.jsonl", "advanced_train.jsonl", "validation.jsonl")
+            ]
+        },
+        "objective": "final assistant response only",
+        "seed": 42,
+    }
+    (output / "training_provenance.json").write_text(json.dumps(provenance, indent=2))
     print(
         "Adapter saved. This is not a standalone model; retain "
         "the exact base model. Evaluate before deployment."
