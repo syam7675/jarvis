@@ -1,0 +1,8 @@
+# Optional training stack, separate from the Jarvis development environment.
+# Resolve and lock exact versions in your GPU environment before a real run.
+torch>=2.6,<3
+transformers>=4.51,<5
+peft>=0.15,<1
+datasets>=3,<5
+accelerate>=1.6,<2
+safetensors>=0.5,<1

@@ -1,0 +1,44 @@
+{
+  "package_version": "1.0.0",
+  "training_status": "NOT_TRAINED",
+  "model_weights_included": false,
+  "dataset": {
+    "train": 48,
+    "validation": 6,
+    "test": 6,
+    "languages": [
+      "te",
+      "en",
+      "hi"
+    ],
+    "source": "original synthetic seed; native review required"
+  },
+  "verified": [
+    "dataset schema",
+    "split separation by intent",
+    "memory consent, owner isolation, correction, export, deletion",
+    "Python compilation",
+    "archive checksum verification"
+  ],
+  "unverified": [
+    "actual model fine-tuning",
+    "trained model quality",
+    "native-speaker review",
+    "ASR and TTS performance"
+  ],
+  "files": {
+    "EVALUATION.md": "8c8486c3a5b5f6a3fe4ab01a596174f867bf863bce2348c214e40cb3bae4e1a8",
+    "LICENSE": "ac617ecddb7ffeb27a239c6c9c8145212306baa90e23ee694849bf3cefb10743",
+    "README.md": "d12f65c0471407829e3c02e8f2a7b9c1e866152516656a3d9e601d4559dd1c32",
+    "SYSTEM_PROMPT.md": "90de97a23694b8059f403f4ce65072bea2ca60734afa6eb0017aaa8bc0194ecb",
+    "data/DATA_CARD.md": "51a0cdfbbe70d0919ae5e859bf6f07bd7fae92da30dd2de6c393bb034adf038e",
+    "data/test.jsonl": "a578a5a1cabd264101b167d07009f3601c57967821eb46cb2e74c3d16ae9fbe7",
+    "data/train.jsonl": "b4fa9a8c2a01db093adfa255fc1151222eb8b829764fd83295bcb50dad7e9d1b",
+    "data/validation.jsonl": "a6f9972ba0bf1cb928aae17d8604cad61c70fb35b6ff3b6165478b4d416326c4",
+    "jarvis_profile/__init__.py": "02b2219e6cd03f104461c10835b79e869d63b4aa2293cd35a68db10d961e4624",
+    "jarvis_profile/memory.py": "c21cf3cb6f06ffcc6c5fcf6a95a119956dac04f721b654532c318745574e50ec",
+    "requirements-training.txt": "55cda68337859bef1ddbdc7c5590315cf917368caf622dc2ec528b535cc5c6b4",
+    "scripts/train_lora.py": "d1db3a50ad72932eff0a2104de1df1945bd5f492f68e653a883cada5d841a516",
+    "scripts/validate.py": "0332cb3e2eff18352418f6e49c68c285f52bcbda7cef00ca1fe0d29792166b16"
+  }
+}
