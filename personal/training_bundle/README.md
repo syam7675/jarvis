@@ -36,11 +36,12 @@ The OpenRouter key must already be configured securely. This adapter does not tr
 
 ```python
 from jarvis_profile.memory import Memory
-m = Memory('/a/protected/path/jarvis-memory.sqlite')
-m.put('authenticated-user-id', 'reply_language', 'te', consent=True)
-print(m.inspect('authenticated-user-id'))
-print(m.export('authenticated-user-id'))
-m.forget('authenticated-user-id', 'reply_language')
+
+m = Memory("/a/protected/path/jarvis-memory.sqlite")
+m.put("authenticated-user-id", "reply_language", "te", consent=True)
+print(m.inspect("authenticated-user-id"))
+print(m.export("authenticated-user-id"))
+m.forget("authenticated-user-id", "reply_language")
 m.close()
 ```
 
