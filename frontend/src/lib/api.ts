@@ -1,6 +1,7 @@
 import type { ModelInfo, SavingsData, ServerInfo } from '../types';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './supabase';
 import { serializeToolCallArguments } from './tool-call';
+import { timeZoneHeaders } from './timezone';
 
 // ---------------------------------------------------------------------------
 // Supabase config
@@ -108,16 +109,45 @@ export const authHeaders = (
 // Centralized fetch for the local server: prepends getBase() and injects the
 // Bearer auth header (when a key is set) on every call. Using this everywhere
 // guarantees no /v1 or /api request is sent without auth — the bug in #266 was
-// that direct fetch() calls omitted the header and 401'd. `path` is the
-// server-relative path (e.g. "/v1/savings").
-export const apiFetch = (
+// that direct fetch() calls omitted the header and 401'd. `path` can be a
+// server-relative path or an absolute URL on the configured API server.
+// Never forward that server's credentials to another origin or app prefix.
+const resolveApiUrl = (path: string): string => {
+  if (path.startsWith('//') || path.includes('\\') || /[\u0000-\u001f\u007f]/.test(path) || path.trim() !== path) {
+    throw new Error('Invalid API request URL');
+  }
+  const base = getBase().replace(/\/+$/, '');
+  const page = typeof window !== 'undefined' && window.location?.href
+    ? window.location.href : 'http://localhost/';
+  const boundary = new URL(base || '/', page);
+  const absolute = /^[a-z][a-z0-9+.-]*:/i.test(path);
+  const url = absolute ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  const target = new URL(url, page);
+  const prefix = boundary.pathname.replace(/\/+$/, '');
+  const insidePrefix = (pathname: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
+  const decodedPath = prefix
+    ? new URL(decodeURIComponent(target.pathname), target.origin).pathname : target.pathname;
+  if (
+    !['http:', 'https:'].includes(target.protocol)
+    || target.origin !== boundary.origin
+    || target.username || target.password
+    || boundary.username || boundary.password || boundary.search || boundary.hash
+    || (prefix && (!insidePrefix(target.pathname) || !insidePrefix(decodedPath)))
+  ) {
+    throw new Error('API request must stay on the configured server');
+  }
+  return url;
+};
+
+export const apiFetch = async (
   path: string,
   init: RequestInit = {},
 ): Promise<Response> => {
+  const url = resolveApiUrl(path);
   const headers = authHeaders(
     (init.headers as Record<string, string> | undefined) ?? {},
   );
-  return fetch(`${getBase()}${path}`, { ...init, headers });
+  return fetch(url, { ...init, headers });
 };
 
 async function tauriInvoke<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -362,13 +392,20 @@ export interface SpeechHealth {
   reason?: string;
 }
 
-export async function transcribeAudio(audioBlob: Blob, filename = 'recording.webm'): Promise<TranscriptionResult> {
+export async function transcribeAudio(
+  audioBlob: Blob,
+  filename = 'recording.webm',
+  opts: { hotwords?: string; language?: string } = {},
+): Promise<TranscriptionResult> {
   if (isTauri()) {
     try {
       const buffer = await audioBlob.arrayBuffer();
       return await tauriInvoke<TranscriptionResult>('transcribe_audio', {
         audioData: Array.from(new Uint8Array(buffer)),
         filename,
+        hotwords: opts.hotwords ?? null,
+        language: opts.language ?? null,
+        apiKey: getApiKey() || null,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -377,6 +414,8 @@ export async function transcribeAudio(audioBlob: Blob, filename = 'recording.web
   }
   const formData = new FormData();
   formData.append('file', audioBlob, filename);
+  if (opts.hotwords) formData.append('hotwords', opts.hotwords);
+  if (opts.language) formData.append('language', opts.language);
   const res = await apiFetch(`/v1/speech/transcribe`, {
     method: 'POST',
     body: formData,
@@ -609,18 +648,15 @@ export async function bindAgentChannel(
   channelType: string,
   config?: Record<string, unknown>,
 ): Promise<ChannelBinding> {
-  const res = await fetch(
-    `${getBase()}/v1/managed-agents/${agentId}/channels`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        channel_type: channelType,
-        config: config || {},
-        routing_mode: 'dedicated',
-      }),
-    },
-  );
+  const res = await apiFetch(`/v1/managed-agents/${agentId}/channels`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      channel_type: channelType,
+      config: config || {},
+      routing_mode: 'dedicated',
+    }),
+  });
   if (!res.ok) throw new Error(`Failed: ${res.status}`);
   return res.json();
 }
@@ -629,10 +665,9 @@ export async function unbindAgentChannel(
   agentId: string,
   bindingId: string,
 ): Promise<void> {
-  const res = await fetch(
-    `${getBase()}/v1/managed-agents/${agentId}/channels/${bindingId}`,
-    { method: 'DELETE' },
-  );
+  const res = await apiFetch(`/v1/managed-agents/${agentId}/channels/${bindingId}`, {
+    method: 'DELETE',
+  });
   if (!res.ok) throw new Error(`Failed: ${res.status}`);
 }
 
@@ -712,7 +747,10 @@ export async function fetchTemplates(): Promise<AgentTemplate[]> {
 }
 
 export async function runManagedAgent(agentId: string): Promise<void> {
-  const res = await apiFetch(`/v1/managed-agents/${agentId}/run`, { method: 'POST' });
+  const res = await apiFetch(`/v1/managed-agents/${agentId}/run`, {
+    method: 'POST',
+    headers: timeZoneHeaders(),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(body.detail || `Failed: ${res.status}`);
@@ -766,7 +804,7 @@ export async function sendAgentMessage(
 ): Promise<AgentMessage> {
   const res = await apiFetch(`/v1/managed-agents/${agentId}/messages`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...timeZoneHeaders() },
     body: JSON.stringify({ content, mode, stream: true }),
   });
   if (!res.ok) throw new Error(`Failed: ${res.status}`);
@@ -881,7 +919,7 @@ export async function sendAgentMessage(
 export async function askAgent(agentId: string, content: string): Promise<AgentMessage> {
   const res = await apiFetch(`/v1/managed-agents/${agentId}/messages`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...timeZoneHeaders() },
     body: JSON.stringify({ content, mode: 'immediate', stream: false }),
   });
   if (!res.ok) throw new Error(`Failed: ${res.status}`);

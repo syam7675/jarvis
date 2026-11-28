@@ -257,6 +257,25 @@ context_from_memory = true
 
 ---
 
+### `[system_prompt]` — Current Time and Time Zone
+
+```toml
+[system_prompt]
+include_current_time = true
+timezone = "America/New_York"
+```
+
+When enabled, prompts include the current local time and zone after the cached
+prefix. The web UI sends the device's zone, or the choice in **Settings →
+Appearance → Time zone**, with chat and managed-agent requests. That zone applies
+to the request and immediate workers it starts. Unknown zones are ignored.
+
+Queued and scheduled runs without a request use `timezone` from this section,
+then the server's local zone if it is unset. A previous browser request does not
+change this default. Set `include_current_time = false` to omit the time section.
+
+---
+
 ### `[learning]` — Learning Policies
 
 Controls whether the learning system is enabled and configures per-primitive policies through nested sub-sections.
@@ -1141,6 +1160,9 @@ OpenJarvis respects the following environment variables:
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | API key for OpenAI cloud inference. Required for the `cloud` engine with OpenAI models. |
+| `ELEVENLABS_API_KEY` | API key for ElevenLabs cloud text-to-speech. Keep this in the environment of the OpenJarvis process. |
+| `ELEVENLABS_VOICE_ID` | Optional voice ID for ElevenLabs synthesis when no voice ID is supplied. The built-in default is Eldrin (`6WwXjDDEMyNmFG95zycZ`). |
+| `ELEVENLABS_MODEL` | Optional ElevenLabs model override. Defaults to `eleven_multilingual_v2`. |
 | `ANTHROPIC_API_KEY` | API key for Anthropic cloud inference. Required for the `cloud` engine with Claude models. |
 | `GOOGLE_API_KEY` | API key for Google Gemini inference. Required for the `google` engine. |
 | `MINIMAX_API_KEY` | API key for MiniMax cloud inference. Required for the `cloud` engine with MiniMax models (MiniMax-M3, MiniMax-M2.7, MiniMax-M2.7-highspeed, MiniMax-M2.5, MiniMax-M2.5-highspeed). |
@@ -1156,6 +1178,21 @@ OpenJarvis respects the following environment variables:
 
 In the desktop app, you can save `ATLASCLOUD_API_KEY` in **Cloud Models** or
 **Settings → API Keys** instead of setting an environment variable.
+
+### ElevenLabs speech output
+
+To select ElevenLabs, set `tts_backend = "elevenlabs"` in `[speech]` and provide
+`ELEVENLABS_API_KEY` in the process environment. To choose a different voice,
+add `voice_id` with an ID available to your account. ElevenLabs [recommends
+Eldrin to replace George](https://elevenlabs.io/docs/help-center/product/voices/my-voices/what-are-default-voices),
+which retires on December 31, 2026. If your config explicitly selects George,
+update that ID before the retirement date. [Voice access depends on your
+ElevenLabs plan](https://elevenlabs.io/docs/eleven-creative/voices/voice-library).
+
+When the API key is set, chat and web speech can also select ElevenLabs as a
+fallback if the preferred and other earlier backends are unavailable. That
+fallback uses the built-in voice. Synthesis sends the text being spoken to
+ElevenLabs. Leave the API key unset if you do not want this provider used.
 
 ## Next Steps
 

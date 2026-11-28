@@ -124,12 +124,12 @@ _DEEPSEEK_MODELS = [
 _OPENROUTER_POPULAR = [
     "openrouter/auto",
     "openrouter/openai/gpt-4o",
-    "openrouter/anthropic/claude-sonnet-4",
+    "openrouter/anthropic/claude-sonnet-4.5",
     "openrouter/google/gemini-2.5-pro",
     "openrouter/meta-llama/llama-3.3-70b-instruct",
     "openrouter/mistralai/mistral-large",
-    "openrouter/deepseek/deepseek-r1",
-    "openrouter/qwen/qwen3-235b-a22b",
+    "openrouter/deepseek/deepseek-r1-0528",
+    "openrouter/qwen/qwen3-235b-a22b-2507",
 ]
 
 # Atlas Cloud models — prefixed with "atlascloud/" so they can be identified.
@@ -1079,14 +1079,12 @@ class CloudEngine(InferenceEngine):
             "ttft": elapsed,
         }
         if getattr(choice.message, "tool_calls", None):
+            # Flat shape, like the other engines: agents read tc["name"].
             result["tool_calls"] = [
                 {
                     "id": tc.id,
-                    "type": tc.type,
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
                 }
                 for tc in choice.message.tool_calls
             ]
@@ -1150,14 +1148,12 @@ class CloudEngine(InferenceEngine):
             "ttft": elapsed,
         }
         if getattr(choice.message, "tool_calls", None):
+            # Flat shape, like the other engines: agents read tc["name"].
             result["tool_calls"] = [
                 {
                     "id": tc.id,
-                    "type": tc.type,
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
                 }
                 for tc in choice.message.tool_calls
             ]

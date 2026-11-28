@@ -176,6 +176,10 @@ class QueryOrchestrator:
                 agent_id=agent_name,
             )
         )
+        if system_prompt is None:
+            _cfg_prompt = getattr(s.config.agent, "system_prompt", "") or ""
+            if _cfg_prompt.strip():
+                system_prompt = _cfg_prompt
         if system_prompt is not None:
             agent_kwargs["system_prompt"] = system_prompt
         if operator_id is not None:
@@ -351,9 +355,12 @@ class QueryOrchestrator:
                     from openjarvis.tools.llm_tool import LLMTool
 
                     tools.append(LLMTool(s.engine, model=s.model))
-                elif name in {"file_read", "file_write"} and ToolRegistry.contains(
-                    name
-                ):
+                elif name in {
+                    "file_read",
+                    "file_write",
+                    "apply_patch",
+                    "browser_screenshot",
+                } and ToolRegistry.contains(name):
                     from openjarvis.tools._paths import file_tool_kwargs
 
                     tools.append(

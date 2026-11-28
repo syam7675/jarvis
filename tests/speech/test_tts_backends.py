@@ -61,6 +61,55 @@ def test_cartesia_synthesize():
     assert result.voice_id == "test-voice"
 
 
+def test_cartesia_default_model_is_current(monkeypatch):
+    # Cartesia sunset the original "sonic" id (HTTP 400 "Model sunsetted");
+    # the default must track a model the API still serves.
+    monkeypatch.delenv("CARTESIA_MODEL", raising=False)
+    from openjarvis.speech.cartesia_tts import CartesiaTTSBackend
+
+    backend = CartesiaTTSBackend(api_key="fake-key")
+    assert backend._model == "sonic-3"
+
+
+def test_cartesia_model_env_override(monkeypatch):
+    monkeypatch.setenv("CARTESIA_MODEL", "sonic-turbo")
+    from openjarvis.speech.cartesia_tts import CartesiaTTSBackend
+
+    assert CartesiaTTSBackend(api_key="fake-key")._model == "sonic-turbo"
+    # An explicit constructor argument still wins over the environment.
+    assert CartesiaTTSBackend(api_key="fake-key", model="sonic-2")._model == "sonic-2"
+
+
+@pytest.mark.parametrize("speed", [1.0, 1.25])
+def test_cartesia_request_sends_current_model_and_api_version(speed):
+    from openjarvis.speech import cartesia_tts
+
+    captured: dict = {}
+
+    class _Resp:
+        content = b"audio-bytes"
+
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, *, headers, json, timeout):
+        captured.update(url=url, headers=headers, json=json)
+        return _Resp()
+
+    with patch.object(cartesia_tts.httpx, "post", side_effect=fake_post):
+        out = cartesia_tts._cartesia_synthesize(
+            "fake-key", "Hello", "voice-1", speed=speed
+        )
+
+    assert out == b"audio-bytes"
+    assert captured["url"].endswith("/tts/bytes")
+    assert captured["json"]["model_id"] == "sonic-3"
+    assert captured["headers"]["Cartesia-Version"] == "2025-04-16"
+    assert "speed" not in captured["json"]
+    if speed != 1.0:
+        assert captured["json"]["generation_config"] == {"speed": speed}
+
+
 # ---------------------------------------------------------------------------
 # Kokoro backend tests
 # ---------------------------------------------------------------------------
@@ -147,11 +196,14 @@ def test_kokoro_missing_chinese_deps_gives_actionable_error(monkeypatch):
     from openjarvis.speech.kokoro_tts import KokoroTTSBackend
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             # Mimic what happens inside Kokoro when misaki.zh can't import.
             raise ImportError("No module named 'ordered_set'")
 
     class FakeKModel:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
         def to(self, _device):
             return self
 
@@ -189,7 +241,7 @@ def test_kokoro_pipeline_cached_per_language(monkeypatch):
             return self
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             init_calls.append(lang_code)
             self.model = model
 
@@ -205,6 +257,41 @@ def test_kokoro_pipeline_cached_per_language(monkeypatch):
     assert init_calls == ["a", "z"]
 
 
+def test_kokoro_passes_repo_id_explicitly(monkeypatch):
+    """Kokoro prints a stdout warning for every KModel/KPipeline built without
+    repo_id, which interrupts voice-mode output; always pass it."""
+    import sys
+    import types
+
+    from openjarvis.speech.kokoro_tts import KokoroTTSBackend
+
+    repo_ids = {}
+
+    class FakeKModel:
+        def __init__(self, **kwargs):
+            repo_ids["model"] = kwargs.get("repo_id")
+
+        def to(self, _device):
+            return self
+
+        def eval(self):
+            return self
+
+    class FakeKPipeline:
+        def __init__(self, lang_code, model, repo_id=None):
+            repo_ids["pipeline"] = repo_id
+
+    fake_kokoro = types.SimpleNamespace(KModel=FakeKModel, KPipeline=FakeKPipeline)
+    monkeypatch.setitem(sys.modules, "kokoro", fake_kokoro)
+
+    KokoroTTSBackend()._ensure_pipeline("p")
+
+    assert repo_ids == {
+        "model": "hexgrad/Kokoro-82M",
+        "pipeline": "hexgrad/Kokoro-82M",
+    }
+
+
 def test_kokoro_pipeline_cache_is_thread_safe(monkeypatch):
     """Concurrent requests for one language construct exactly one pipeline."""
     import sys
@@ -217,6 +304,9 @@ def test_kokoro_pipeline_cache_is_thread_safe(monkeypatch):
     init_calls = []
 
     class FakeKModel:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
         def to(self, _device):
             return self
 
@@ -224,7 +314,7 @@ def test_kokoro_pipeline_cache_is_thread_safe(monkeypatch):
             return self
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             init_calls.append(lang_code)
             time.sleep(0.02)
 
@@ -260,6 +350,9 @@ def test_kokoro_pipeline_cache_evicts_lru_and_cleans_up(monkeypatch):
     instances = {}
 
     class FakeKModel:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
         def to(self, _device):
             return self
 
@@ -267,7 +360,7 @@ def test_kokoro_pipeline_cache_evicts_lru_and_cleans_up(monkeypatch):
             return self
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             self.closed = False
             instances[lang_code] = self
 
@@ -320,6 +413,9 @@ def test_kokoro_synthesize_routes_voice_to_correct_language(monkeypatch):
     call_args = []
 
     class FakeKModel:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
         def to(self, device):
             self.device = device
             return self
@@ -328,7 +424,7 @@ def test_kokoro_synthesize_routes_voice_to_correct_language(monkeypatch):
             return self
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             init_args.append(lang_code)
             self.model = model
 
@@ -383,7 +479,7 @@ def test_kokoro_reuses_model_and_honors_path_and_device(monkeypatch):
             return self
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             pipeline_models.append((lang_code, model))
 
     monkeypatch.setitem(
@@ -396,12 +492,17 @@ def test_kokoro_reuses_model_and_honors_path_and_device(monkeypatch):
     backend._ensure_pipeline("a")
     backend._ensure_pipeline("z")
 
-    assert model_inits == [{"model": "/models/kokoro.pth"}]
+    assert model_inits == [
+        {"repo_id": "hexgrad/Kokoro-82M", "model": "/models/kokoro.pth"}
+    ]
     assert model_devices == ["cpu"]
     assert pipeline_models[0][1] is pipeline_models[1][1]
 
 
 class _FakeKModel:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
     def to(self, _device):
         return self
 
@@ -466,7 +567,7 @@ def test_kokoro_tolerates_unloadable_spacy_for_non_english_voices(monkeypatch):
     pipelines = []
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             pipelines.append(lang_code)
 
     _serve_kokoro_importing_spacy(monkeypatch, FakeKPipeline)
@@ -629,7 +730,7 @@ def test_kokoro_health_and_pipeline_share_one_model(monkeypatch):
     errors = []
 
     class SlowModel(_FakeKModel):
-        def __init__(self):
+        def __init__(self, **kwargs):
             models.append(self)
             time.sleep(0.02)
 
@@ -703,7 +804,7 @@ def test_kokoro_health_does_not_build_english_pipeline(monkeypatch):
     pipelines = []
 
     class FakeKPipeline:
-        def __init__(self, lang_code, model):
+        def __init__(self, lang_code, model, repo_id=None):
             pipelines.append(lang_code)
 
     monkeypatch.setitem(
@@ -761,6 +862,21 @@ def test_elevenlabs_health_requires_key(monkeypatch):
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
     assert ElevenLabsTTSBackend().health() is False
     assert ElevenLabsTTSBackend(api_key="fake-key").health() is True
+
+
+def test_elevenlabs_default_uses_george_replacement(monkeypatch):
+    from openjarvis.speech.elevenlabs_tts import ElevenLabsTTSBackend
+
+    monkeypatch.delenv("ELEVENLABS_VOICE_ID", raising=False)
+    backend = ElevenLabsTTSBackend(api_key="fake-key")
+    with patch(
+        "openjarvis.speech.elevenlabs_tts._elevenlabs_synthesize",
+        return_value=b"fake-mp3",
+    ) as synth:
+        result = backend.synthesize("Hello")
+
+    assert synth.call_args.kwargs["voice_id"] == "6WwXjDDEMyNmFG95zycZ"
+    assert result.voice_id == "6WwXjDDEMyNmFG95zycZ"
 
 
 def test_elevenlabs_synthesize_mp3():
@@ -823,7 +939,11 @@ def test_elevenlabs_ignores_kokoro_voice_ids(monkeypatch, kokoro_voice):
     assert result.voice_id == _DEFAULT_VOICE_ID
 
 
-def test_elevenlabs_env_voice_used_when_none_given(monkeypatch):
+@pytest.mark.parametrize(
+    ("voice_id", "expected"),
+    [("bm_george", "envVoice123"), ("explicitVoice456", "explicitVoice456")],
+)
+def test_elevenlabs_explicit_voice_takes_precedence(monkeypatch, voice_id, expected):
     from openjarvis.speech.elevenlabs_tts import ElevenLabsTTSBackend
 
     monkeypatch.setenv("ELEVENLABS_VOICE_ID", "envVoice123")
@@ -832,9 +952,9 @@ def test_elevenlabs_env_voice_used_when_none_given(monkeypatch):
         "openjarvis.speech.elevenlabs_tts._elevenlabs_synthesize",
         return_value=b"fake-mp3",
     ) as synth:
-        backend.synthesize("Hello", voice_id="bm_george")
+        backend.synthesize("Hello", voice_id=voice_id)
 
-    assert synth.call_args.kwargs["voice_id"] == "envVoice123"
+    assert synth.call_args.kwargs["voice_id"] == expected
 
 
 def test_elevenlabs_speed_is_clamped():
